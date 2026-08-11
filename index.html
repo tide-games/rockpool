@@ -1,0 +1,829 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rockpool — every low tide turns one stone</title>
+<meta name="description" content="Dig for wreck-relics in the rockpool. The odds shift with every stone — wade out when the water says so. Pure static, honest maths.">
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="tide-games">
+<meta property="og:title" content="Rockpool — every low tide turns one stone">
+<meta property="og:description" content="Dig for wreck-relics in the rockpool with Brine the crab. The odds shift with every stone — wade out when the water says so.">
+<meta property="og:url" content="https://tide-games.github.io/rockpool/">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Ctext y='26' font-size='26'%3E🦀%3C/text%3E%3C/svg%3E">
+<style>
+  :root{
+    --paper:#f7f1e3; --paper-2:#efe6d2; --ink:#232e38; --ink-soft:#5c6a76;
+    --line:#d9cdb4; --accent:#1e6f8e; --gold:#b8860b;
+    --win:#1e7d4f; --lose:#b0483f;
+    --serif:"Iowan Old Style",Palatino,Georgia,serif;
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;padding:0}
+  body{
+    background:
+      radial-gradient(1200px 500px at 50% -180px, #fdf9ee 0%, var(--paper) 55%),
+      var(--paper);
+    color:var(--ink);
+    font:15px/1.45 system-ui,-apple-system,"Segoe UI",sans-serif;
+    min-height:100vh;
+  }
+  .wrap{max-width:1040px;margin:0 auto;padding:14px 16px 40px}
+  :focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+  .ic{width:1em;height:1em;vertical-align:-0.125em;fill:currentColor}
+
+  header{display:flex;align-items:baseline;gap:14px;flex-wrap:wrap;padding:6px 2px 10px}
+  h1{font:700 34px/1 var(--serif);letter-spacing:.06em;margin:0}
+  h1 .ic{width:26px;height:26px;vertical-align:-2px;margin-right:4px;fill:#c94f4f}
+  .tagline{color:var(--ink-soft);font-style:italic;font-family:var(--serif)}
+  .spacer{flex:1}
+  .chip{
+    display:inline-flex;align-items:center;gap:7px;padding:7px 13px;border-radius:999px;
+    background:#fff;border:1px solid var(--line);font-weight:600;white-space:nowrap;
+    font-variant-numeric:tabular-nums;box-shadow:0 1px 2px rgba(35,46,56,.06);
+  }
+  .chip small{font-weight:500;color:var(--ink-soft)}
+  .chip.purse{border-color:#dcbf74;background:#fdf8ea}
+  .chip.purse .ic{fill:var(--gold)}
+  button.chip{cursor:pointer;font:inherit;font-weight:600;color:var(--ink)}
+  button.chip:hover{border-color:var(--accent)}
+
+  .board{display:grid;grid-template-columns:1fr 300px;gap:16px;align-items:start}
+  @media (max-width:860px){.board{grid-template-columns:1fr}}
+
+  .pool-frame{
+    position:relative;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    background:#e8dfc8;
+    box-shadow:0 10px 30px -18px rgba(60,60,30,.5), 0 1px 3px rgba(35,46,56,.08);
+  }
+  canvas{display:block;width:100%;height:auto}
+  #stone-grid{position:absolute;inset:0;pointer-events:none}
+  #stone-grid button{
+    position:absolute;transform:translate(-50%,-50%);
+    background:transparent;border:0;border-radius:50%;
+    cursor:pointer;pointer-events:auto;
+  }
+  #stone-grid button:disabled{cursor:default;pointer-events:none}
+  #stone-grid button:focus-visible{outline:2.5px solid #fff;outline-offset:2px}
+  #stone-grid button:not(:disabled):hover{outline:2px dashed rgba(255,255,255,.75);outline-offset:1px}
+
+  #banner{
+    position:absolute;left:0;right:0;top:26%;text-align:center;pointer-events:none;
+    opacity:0;transform:translateY(10px) scale(.94);
+    transition:opacity .18s ease, transform .3s cubic-bezier(.2,1.4,.4,1);
+  }
+  #banner.show{opacity:1;transform:none}
+  #banner .inner{
+    display:inline-block;background:var(--paper);border:1px solid var(--line);
+    border-top:4px solid var(--accent);border-radius:12px;padding:14px 28px;
+    box-shadow:0 18px 44px -14px rgba(50,50,20,.5);
+  }
+  #banner .inner.win{border-top-color:var(--win)}
+  #banner .inner.lose{border-top-color:var(--lose)}
+  #banner .head{font:700 30px/1.15 var(--serif)}
+  #banner .sub{color:var(--ink-soft);margin-top:5px;font-variant-numeric:tabular-nums;font-size:15px}
+  #banner .sub b{font-size:18px}
+  #banner .sub b.win{color:var(--win)} #banner .sub b.lose{color:var(--lose)}
+
+  .card{
+    background:#fff;border:1px solid var(--line);border-radius:14px;overflow:hidden;
+    box-shadow:0 1px 3px rgba(35,46,56,.07);
+  }
+  .card h2{
+    margin:0;padding:11px 16px;font:700 13px/1 system-ui;letter-spacing:.14em;
+    text-transform:uppercase;color:var(--ink-soft);border-bottom:1px solid var(--line);
+    background:linear-gradient(#fff,#fbf7ec);display:flex;align-items:center;gap:8px;
+  }
+  .card h2 .right{margin-left:auto;letter-spacing:0;text-transform:none;font-weight:500}
+  .slip{padding:14px 16px;display:flex;flex-direction:column;gap:12px}
+
+  /* the relic tray: silhouettes that fill fragment by fragment */
+  .relic{display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid #f0e9d8}
+  .relic:last-child{border-bottom:0}
+  .relic .art{width:54px;height:54px;flex:0 0 auto}
+  .relic .meta{flex:1}
+  .relic .name{font:650 15px var(--serif)}
+  .relic .pays{color:var(--ink-soft);font-size:12.5px;font-variant-numeric:tabular-nums}
+  .frag-dots{display:flex;gap:5px;margin-top:5px}
+  .frag-dots span{
+    width:14px;height:14px;border-radius:4px;border:1.5px solid var(--line);background:var(--paper);
+    transition:background .3s ease, border-color .3s ease, transform .3s cubic-bezier(.2,1.6,.4,1);
+  }
+  .frag-dots span.got{background:var(--gold);border-color:#8a6508;transform:scale(1.12)}
+  .relic.done .name{color:var(--win)}
+  .relic.done .art{filter:drop-shadow(0 0 6px rgba(184,134,11,.7))}
+  .relic.done{animation:banked .6s cubic-bezier(.2,1.4,.4,1)}
+  @keyframes banked{30%{transform:scale(1.05)}}
+
+  .facts{
+    display:grid;grid-template-columns:1fr 1fr;gap:1px;background:var(--line);
+    border:1px solid var(--line);border-radius:9px;overflow:hidden;font-variant-numeric:tabular-nums;
+  }
+  .facts div{background:var(--paper-2);padding:8px 12px}
+  .facts .k{font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--ink-soft);font-weight:600}
+  .facts .v{font:700 17px/1.3 system-ui}
+  #dig-note{font-size:13px;color:var(--ink-soft);line-height:1.5;min-height:38px}
+  .btn{
+    border:0;border-radius:10px;padding:13px;cursor:pointer;min-height:47px;
+    font:700 15px system-ui;letter-spacing:.04em;color:#fff;
+    background:linear-gradient(#2a86a8,var(--accent));
+    box-shadow:0 6px 14px -6px rgba(30,111,142,.55), inset 0 1px 0 rgba(255,255,255,.25);
+  }
+  .btn:hover{filter:brightness(1.06)}
+  .btn:active{transform:translateY(1px)}
+  .btn:disabled{background:#ddd6c4;color:#4a4438;box-shadow:none;cursor:default}
+  .btn.quiet{background:#fff;color:var(--accent);border:1.5px solid var(--accent);box-shadow:none}
+  .btn.quiet:disabled{background:#fff;border-color:var(--line);color:#9a917d}
+
+  .log-card{margin-top:16px}
+  .log-scroll{overflow-x:auto}
+  table.log{width:100%;min-width:560px;border-collapse:collapse;font-size:13px;font-variant-numeric:tabular-nums}
+  table.log th{
+    text-align:left;padding:8px 12px;color:var(--ink-soft);font:600 11px system-ui;
+    letter-spacing:.1em;text-transform:uppercase;border-bottom:1px solid var(--line);
+  }
+  table.log th:first-child{width:120px}
+  table.log th.num,table.log td.num{text-align:right}
+  table.log td{padding:8px 12px;border-bottom:1px solid #f0e9d8}
+  table.log tr:last-child td{border-bottom:0}
+  .when{color:var(--ink-soft);font-size:11px}
+  .delta-win{color:var(--win);font-weight:700}
+  .delta-lose{color:var(--lose);font-weight:700}
+  .tag{font-size:11px;padding:2px 7px;border-radius:999px;border:1px solid var(--line);color:var(--ink-soft)}
+  .empty{padding:18px 16px;color:var(--ink-soft);font-style:italic;font-family:var(--serif)}
+  footer{margin-top:22px;color:var(--ink-soft);font-size:13px;line-height:1.6}
+  footer a{color:var(--accent)}
+  details{border:1px solid var(--line);border-radius:10px;padding:10px 14px}
+  details[open]{background:#fff}
+  details summary{cursor:pointer;font-weight:600;color:var(--ink)}
+</style>
+</head>
+<body>
+<svg width="0" height="0" style="position:absolute" aria-hidden="true">
+  <symbol id="i-crab" viewBox="0 0 16 16"><path d="M8 6.5c2 0 3.4 1.2 3.7 2.9l1.9-.8.5 1.2-2.3 1c-.5 1.4-2 2.2-3.8 2.2s-3.3-.8-3.8-2.2l-2.3-1 .5-1.2 1.9.8C4.6 7.7 6 6.5 8 6.5zM5.3 5.6 4 3.4l1.1-.7 1.3 2.2c.5-.2 1-.3 1.6-.3s1.1.1 1.6.3l1.3-2.2 1.1.7-1.3 2.2c-.5-.4-1.6-.9-2.7-.9s-2.2.5-2.7.9z"/><circle cx="6.3" cy="8.6" r=".8" fill="#fff"/><circle cx="9.7" cy="8.6" r=".8" fill="#fff"/></symbol>
+  <symbol id="i-coin" viewBox="0 0 16 16"><circle cx="8" cy="8" r="6.5"/><circle cx="8" cy="8" r="3.6" fill="rgba(255,255,255,.35)"/></symbol>
+  <symbol id="i-wave" viewBox="0 0 16 16"><path d="M1 9c2-2.6 4-2.6 6 0s4 2.6 6 0l2-2.4V10c-2 2.6-4.4 2.6-6.4.4C6.8 8.2 5 8.4 3.4 10.6L1 13z"/></symbol>
+  <symbol id="i-sound" viewBox="0 0 16 16"><path d="M2 6v4h2.6L9 13.4V2.6L4.6 6z"/><path d="M10.8 5.2a3.6 3.6 0 0 1 0 5.6l-.9-1.1a2.2 2.2 0 0 0 0-3.4zM12.4 3a6 6 0 0 1 0 10l-.9-1.1a4.6 4.6 0 0 0 0-7.8z"/></symbol>
+  <symbol id="i-mute" viewBox="0 0 16 16"><path d="M2 6v4h2.6L9 13.4V2.6L4.6 6z"/><path d="M10.5 6.2 11.6 5l3.2 3.2-1.1 1.1 1.1 1.1-1.1 1.1-1.1-1.1-1.1 1.1-1.1-1.1 1.1-1.1-1.1-1.1z" transform="translate(-.6 -.4)"/></symbol>
+</svg>
+<div class="wrap">
+  <header>
+    <h1><svg class="ic"><use href="#i-crab"/></svg>ROCKPOOL</h1>
+    <span class="tagline">every low tide turns one stone</span>
+    <span class="spacer"></span>
+    <span class="chip purse"><svg class="ic"><use href="#i-coin"/></svg> <small>purse</small> <span id="purse">0</span></span>
+    <button class="chip" id="sound-btn" aria-label="toggle sound"><svg class="ic" id="sound-ic"><use href="#i-sound"/></svg></button>
+  </header>
+
+  <div class="board">
+    <div class="pool-frame">
+      <canvas id="pool" width="700" height="560"></canvas>
+      <div id="stone-grid" role="group" aria-label="the rockpool — choose a stone to turn"></div>
+      <div id="banner"><div class="inner" id="banner-inner"><div class="head" id="banner-head"></div><div class="sub" id="banner-sub"></div></div></div>
+    </div>
+
+    <div>
+      <div class="card">
+        <h2>The wreck <span class="right" id="exp-no"></span></h2>
+        <div class="slip">
+          <div id="relic-tray"></div>
+          <div class="facts">
+            <div><div class="k">Stones left</div><div class="v" id="f-stones">—</div></div>
+            <div><div class="k">Next stone hides</div><div class="v" id="f-odds">—</div></div>
+            <div><div class="k">Spent</div><div class="v" id="f-spent">—</div></div>
+            <div><div class="k">Banked</div><div class="v" id="f-banked">—</div></div>
+          </div>
+          <div id="dig-note">Buy a tide permit and Brine will start turning stones.</div>
+          <button class="btn" id="go-btn">Tide permit — 70</button>
+          <button class="btn quiet" id="out-btn" style="display:none">Wade out</button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="card log-card">
+    <h2>The log <span class="right" id="log-count"></span></h2>
+    <div id="log-empty" class="empty">No expeditions yet. The pool refills every low tide.</div>
+    <div class="log-scroll">
+    <table class="log" id="log" style="display:none">
+      <thead><tr><th>Expedition</th><th>Digs</th><th>Relics</th><th class="num">Spent</th><th class="num">Net</th><th>Proof</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    </div>
+  </div>
+
+  <footer>
+    <details>
+      <summary>Honest water — how the pool works</summary>
+      <p>The relics are <b>not hidden under particular stones</b> — a purely client-side game
+      could never keep that secret. Instead the pool is an honest urn: it starts as
+      <i>25 stones, 9 of them hiding fragments</i>, and each dig draws from what remains —
+      the chance of a find is always <i>fragments left ÷ stones left</i>, exactly as if a fixed
+      layout were revealed one stone at a time. Every dig comes from a seed chain
+      (<code>sha256(expedition | dig #)</code>), so the whole expedition replays identically —
+      <b>verify ✓</b> in the log does it in your browser.</p>
+      <p>The skill is knowing when to wade out: every dig costs 10, completed relics pay the
+      moment their last fragment surfaces, and the odds shift with every stone. Turning the
+      whole pool always loses (the permit sees to that) — the game is stopping well. Played
+      <b>perfectly</b> — we solved it — the house keeps ≈3.6%.</p>
+      <p>This is the practice pool, seeded locally. The Tide version — one stone per Bitcoin
+      block, provable by anyone — arrives with the next tide.</p>
+    </details>
+    <p>Doubloons are play money. Part of <a href="https://tide-games.github.io/">the fleet</a> ·
+    source on <a href="https://github.com/tide-games/rockpool">GitHub</a> ·
+    maths in <a href="rockpool.js">rockpool.js</a>, solved and pinned by tests.</p>
+  </footer>
+</div>
+
+<script type="module">
+import { STONES, DIG_COST, PERMIT, RELICS, FRAGMENTS,
+         newPool, fragmentsLeft, hitChance, dig, bankValue } from './rockpool.js';
+
+/* ================================================================ state */
+const LS = { purse:'rockpool-purse', log:'rockpool-log', exp:'rockpool-exp', sound:'rockpool-sound', n:'rockpool-n' };
+const $ = (id) => document.getElementById(id);
+const MINUS = '−';
+let purse = load(LS.purse, 1000);
+let expNo = load(LS.n, 0);
+let log = load(LS.log, []);
+let soundOn = load(LS.sound, true);
+// the running expedition: {seed, digs, pool-rebuild happens from seed+digs}
+let exp = load(LS.exp, null);
+let pool = null;            // live pool state, rebuilt from exp
+let stoneMap = [];          // stone index -> dug info {dug, hit, relic}
+let busy = false;
+
+function load(k, d){ try{ const v = JSON.parse(localStorage.getItem(k)); return v ?? d; }catch{ return d; } }
+function save(k, v){ try{ localStorage.setItem(k, JSON.stringify(v)); }catch{} }
+const fmt = (n) => n.toLocaleString('en-US');
+const fmtDelta = (n) => (n >= 0 ? '+' : MINUS) + fmt(Math.abs(n));
+const sleep = (ms) => new Promise((r)=>setTimeout(r, ms));
+const watched = () => document.visibilityState === 'visible';
+async function sha256hex(s){
+  const b = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(s));
+  return [...new Uint8Array(b)].map((x)=>x.toString(16).padStart(2,'0')).join('');
+}
+const randHex = (n=16) => [...crypto.getRandomValues(new Uint8Array(n))].map((x)=>x.toString(16).padStart(2,'0')).join('');
+
+/* ================================================================ audio */
+let AC=null;
+function ac(){ if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); return AC; }
+function env(g,t0,a,peak,d){ g.gain.setValueAtTime(0.0001,t0); g.gain.exponentialRampToValueAtTime(peak,t0+a); g.gain.exponentialRampToValueAtTime(0.0001,t0+a+d); }
+function scrape(){ // stone grinding up
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  const len=c.sampleRate*0.3, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*Math.min(1,i/(len*0.3))*(1-i/len);
+  const src=c.createBufferSource(); src.buffer=buf;
+  const f=c.createBiquadFilter(); f.type='bandpass'; f.frequency.setValueAtTime(300,t); f.frequency.linearRampToValueAtTime(700,t+0.3); f.Q.value=2;
+  const g=c.createGain(); g.gain.value=0.3;
+  src.connect(f); f.connect(g); g.connect(c.destination); src.start(t);
+}
+function splash(){
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  const len=c.sampleRate*0.18, buf=c.createBuffer(1,len,c.sampleRate), d=buf.getChannelData(0);
+  for(let i=0;i<len;i++) d[i]=(Math.random()*2-1)*(1-i/len)**1.5;
+  const src=c.createBufferSource(); src.buffer=buf;
+  const f=c.createBiquadFilter(); f.type='highpass'; f.frequency.value=1400;
+  const g=c.createGain(); g.gain.value=0.14;
+  src.connect(f); f.connect(g); g.connect(c.destination); src.start(t);
+}
+function chime(step=0){ // a find
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  [660,880].forEach((f,i)=>{ const o=c.createOscillator(), g=c.createGain();
+    o.type='triangle'; o.frequency.value=f*(1+step*0.12); o.connect(g); g.connect(c.destination);
+    env(g,t+i*0.09,0.01,0.09,0.5); o.start(t+i*0.09); o.stop(t+i*0.09+0.6); });
+}
+function bubble(){ // an empty stone
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  const o=c.createOscillator(), g=c.createGain(); o.type='sine';
+  o.frequency.setValueAtTime(320,t); o.frequency.exponentialRampToValueAtTime(180,t+0.2);
+  o.connect(g); g.connect(c.destination); env(g,t,0.01,0.06,0.25); o.start(t); o.stop(t+0.3);
+}
+function fanfare(big){
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  const notes = big ? [523,659,784,1047,1319] : [523,659,784];
+  notes.forEach((f,i)=>{ const o=c.createOscillator(), g=c.createGain();
+    o.type='triangle'; o.frequency.value=f; o.connect(g); g.connect(c.destination);
+    env(g,t+i*0.12,0.02,0.11,0.5); o.start(t+i*0.12); o.stop(t+i*0.12+0.6); });
+}
+function clack(){
+  if(!soundOn||!watched()) return; const c=ac(), t=c.currentTime;
+  const o=c.createOscillator(), g=c.createGain(); o.type='square'; o.frequency.value=980;
+  o.connect(g); g.connect(c.destination); env(g,t,0.004,0.035,0.05); o.start(t); o.stop(t+0.08);
+}
+
+/* ================================================================ the scene */
+const cv = $('pool'), ctx = ctxFor(cv);
+const W = 700, H = 560;
+function ctxFor(canvas){
+  const dpr = Math.min(2, window.devicePixelRatio||1);
+  canvas.width = 700*dpr; canvas.height = 560*dpr;
+  canvas.style.aspectRatio = '700 / 560';
+  const c = canvas.getContext('2d');
+  c.setTransform(dpr,0,0,dpr,0,0);
+  return c;
+}
+// stone positions: a relaxed 5×5 lattice with per-stone jitter and size,
+// deterministic so the overlay grid matches forever
+const STONE_POS = [];
+{
+  let a = 987654321;
+  const jr = () => { a ^= a<<13; a ^= a>>>17; a ^= a<<5; return ((a>>>0)/4294967296); };
+  for(let i=0;i<STONES;i++){
+    const col=i%5, row=Math.floor(i/5);
+    STONE_POS.push({
+      x: 120 + col*115 + (jr()-0.5)*30,
+      y: 118 + row*92 + (jr()-0.5)*22,
+      r: 30 + jr()*9,
+      rot: jr()*Math.PI,
+      tint: 0.85 + jr()*0.3,
+    });
+  }
+}
+let t0 = performance.now();
+let sparkles = [];          // {x,y,vx,vy,life,c}
+let ripples = [];           // {x,y,r,life}
+let uncovered = {};         // stone i -> {hit, relic, at}
+/* Brine the crab: a small state machine of scuttle → heave → react */
+const crab = {
+  x: 80, y: 500, tx: 80, ty: 500, angle: 0,
+  state: 'idle',            // idle | walk | heave | happy | sad | carry
+  stateT: 0, target: null,  // stone index during a dig
+  blink: 0, home: {x:80,y:500},
+};
+function crabGoto(x,y){ crab.tx=x; crab.ty=y; }
+
+function drawScene(now){
+  const t = now - t0;
+  ctx.clearRect(0,0,W,H);
+  // sandy rock shelf
+  let g = ctx.createLinearGradient(0,0,0,H);
+  g.addColorStop(0,'#eee3c7'); g.addColorStop(1,'#dfd2b0');
+  ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+  // speckle
+  ctx.fillStyle='rgba(120,100,60,.12)';
+  for(let i=0;i<90;i++){ const x=(i*181)%W, y=(i*137)%H; ctx.fillRect(x,y,2,2); }
+  // the pool: an organic blue puddle holding the stones
+  ctx.save();
+  ctx.beginPath();
+  ctx.moveTo(60,140);
+  ctx.bezierCurveTo(30,60, 250,28, 380,44);
+  ctx.bezierCurveTo(560,20, 680,90, 664,220);
+  ctx.bezierCurveTo(690,340, 640,470, 480,506);
+  ctx.bezierCurveTo(330,540, 130,520, 80,420);
+  ctx.bezierCurveTo(28,330, 40,220, 60,140);
+  ctx.closePath();
+  const wg = ctx.createRadialGradient(W/2,H/2,80,W/2,H/2,360);
+  wg.addColorStop(0,'#8ec6d8'); wg.addColorStop(0.7,'#6aacc4'); wg.addColorStop(1,'#5497b1');
+  ctx.fillStyle=wg; ctx.fill();
+  ctx.clip();
+  // caustic shimmer
+  for(let i=0;i<4;i++){
+    const cx=((t*0.01+i*220)%(W+300))-150, cy=120+i*110;
+    const cg=ctx.createRadialGradient(cx,cy,8,cx,cy,120);
+    cg.addColorStop(0,'rgba(255,255,255,.12)'); cg.addColorStop(1,'rgba(255,255,255,0)');
+    ctx.fillStyle=cg; ctx.beginPath(); ctx.arc(cx,cy,120,0,7); ctx.fill();
+  }
+  // ripple rings
+  ripples = ripples.filter((r)=>r.life>0);
+  for(const r of ripples){
+    r.r += 0.9; r.life -= 0.016;
+    ctx.strokeStyle=`rgba(255,255,255,${0.35*r.life})`; ctx.lineWidth=2;
+    ctx.beginPath(); ctx.arc(r.x,r.y,r.r,0,7); ctx.stroke();
+  }
+  // wavy water lines
+  ctx.strokeStyle='rgba(255,255,255,.2)'; ctx.lineWidth=1.4;
+  for(let row=0;row<6;row++){
+    const y=90+row*80;
+    ctx.beginPath();
+    for(let x=20;x<=W-20;x+=12){
+      const yy=y+Math.sin(x*0.03+t*0.0018+row*1.6)*3;
+      x===20?ctx.moveTo(x,yy):ctx.lineTo(x,yy);
+    }
+    ctx.stroke();
+  }
+  // stones (and what's under the turned ones)
+  for(let i=0;i<STONES;i++){
+    const p = STONE_POS[i];
+    const u = uncovered[i];
+    if(u){
+      // the hollow: wet sand, and the find if any
+      ctx.fillStyle='rgba(60,80,90,.28)';
+      ctx.beginPath(); ctx.ellipse(p.x,p.y+4,p.r*0.95,p.r*0.7,0,0,7); ctx.fill();
+      ctx.fillStyle='#cdbb92';
+      ctx.beginPath(); ctx.ellipse(p.x,p.y+3,p.r*0.8,p.r*0.55,0,0,7); ctx.fill();
+      if(u.hit) drawFragment(p.x, p.y, u.relic, t, u.at);
+      // the turned stone rests beside its hollow
+      drawStone(p.x+p.r*0.9, p.y+p.r*0.55, p.r*0.72, p.rot+0.6, p.tint*0.92, t, i, true);
+    } else {
+      const lift = (crab.state==='heave' && crab.target===i)
+        ? Math.min(1,crab.stateT/650) : 0;
+      drawStone(p.x, p.y - lift*16, p.r, p.rot + lift*0.5, p.tint, t, i, false, lift);
+    }
+  }
+  drawCrab(t, now);
+  // sparkles on top
+  sparkles = sparkles.filter((s)=>s.life>0);
+  for(const s of sparkles){
+    s.x+=s.vx; s.y+=s.vy; s.vy+=0.05; s.life-=0.02;
+    ctx.globalAlpha=Math.max(0,s.life);
+    ctx.fillStyle=s.c;
+    ctx.beginPath(); ctx.arc(s.x,s.y,2.4,0,7); ctx.fill();
+    ctx.globalAlpha=1;
+  }
+  ctx.restore();
+  // pool rim
+  ctx.strokeStyle='rgba(120,100,60,.5)'; ctx.lineWidth=5;
+  ctx.beginPath();
+  ctx.moveTo(60,140);
+  ctx.bezierCurveTo(30,60, 250,28, 380,44);
+  ctx.bezierCurveTo(560,20, 680,90, 664,220);
+  ctx.bezierCurveTo(690,340, 640,470, 480,506);
+  ctx.bezierCurveTo(330,540, 130,520, 80,420);
+  ctx.bezierCurveTo(28,330, 40,220, 60,140);
+  ctx.closePath(); ctx.stroke();
+  requestAnimationFrame(drawScene);
+}
+function drawStone(x,y,r,rot,tint,t,i,turned,lift=0){
+  ctx.save(); ctx.translate(x,y); ctx.rotate(rot);
+  if(lift>0){ ctx.shadowColor='rgba(30,40,50,.4)'; ctx.shadowBlur=10+lift*8; ctx.shadowOffsetY=6+lift*10; }
+  else { ctx.shadowColor='rgba(30,40,50,.3)'; ctx.shadowBlur=5; ctx.shadowOffsetY=3; }
+  const base = turned ? 108 : 128;
+  ctx.fillStyle=`rgb(${Math.round(base*tint)},${Math.round((base+8)*tint)},${Math.round((base+14)*tint)})`;
+  ctx.beginPath();
+  ctx.ellipse(0,0,r,r*0.82,0,0,7);
+  ctx.fill();
+  ctx.shadowColor='transparent';
+  // wet sheen
+  ctx.fillStyle='rgba(255,255,255,.22)';
+  ctx.beginPath(); ctx.ellipse(-r*0.25,-r*0.3,r*0.45,r*0.26,-0.5,0,7); ctx.fill();
+  ctx.restore();
+}
+const FRAG_COLORS = { coin:'#d4af37', sextant:'#b08d57', figure:'#8a6accolor' };
+function drawFragment(x,y,relic,t,at){
+  const age = Math.min(1,(performance.now()-at)/400);
+  const pop = 1+0.4*(1-(1-(1-age))**3)* (1-age);
+  ctx.save(); ctx.translate(x,y+2); ctx.scale(0.9+0.1*age,0.9+0.1*age);
+  const glint = 0.5+0.5*Math.sin(t*0.004+x);
+  if(relic==='coin'){
+    ctx.fillStyle='#d4af37';
+    ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fill();
+    ctx.fillStyle='rgba(255,255,255,'+(0.25+0.25*glint)+')';
+    ctx.beginPath(); ctx.arc(-3,-3,5,0,7); ctx.fill();
+    ctx.strokeStyle='#8a6508'; ctx.lineWidth=1.5; ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.stroke();
+  } else if(relic==='sextant'){
+    ctx.strokeStyle='#b08d57'; ctx.lineWidth=3.5; ctx.lineCap='round';
+    ctx.beginPath(); ctx.arc(0,3,10,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(0,3); ctx.lineTo(-7,-7); ctx.moveTo(0,3); ctx.lineTo(7,-7); ctx.stroke();
+  } else {
+    // figurehead splinter: a carved curl
+    ctx.strokeStyle='#7a5b3a'; ctx.lineWidth=4; ctx.lineCap='round';
+    ctx.beginPath(); ctx.moveTo(-6,8); ctx.quadraticCurveTo(2,-2,-2,-8); ctx.quadraticCurveTo(-5,-11,-8,-9); ctx.stroke();
+    ctx.fillStyle='rgba(255,255,255,'+(0.15+0.2*glint)+')';
+    ctx.beginPath(); ctx.arc(-3,-2,3,0,7); ctx.fill();
+  }
+  ctx.restore();
+}
+/* Brine: body, claws, legs, eye stalks — all parametric */
+function drawCrab(t, now){
+  // movement
+  const dx = crab.tx-crab.x, dy = crab.ty-crab.y;
+  const dist = Math.hypot(dx,dy);
+  if(dist>2){
+    crab.state = crab.state==='heave'?'heave':'walk';
+    const sp = 3.2;
+    crab.x += dx/dist*Math.min(sp,dist);
+    crab.y += dy/dist*Math.min(sp,dist);
+  } else if(crab.state==='walk'){ crab.state='idle'; }
+  crab.stateT = now - (crab._t0||now);
+  const s = crab.state;
+  const wob = s==='walk' ? Math.sin(t*0.03)*2 : Math.sin(t*0.004)*1.2; // breathe
+  const hop = s==='happy' ? Math.abs(Math.sin(t*0.02))*10 : 0;
+  const droop = s==='sad' ? 4 : 0;
+  const heaveLean = s==='heave' ? Math.min(1,crab.stateT/650) : 0;
+  ctx.save();
+  ctx.translate(crab.x, crab.y - hop + droop*0.5);
+  ctx.rotate(heaveLean*-0.12);
+  // legs: 3 per side
+  ctx.strokeStyle='#a63d2e'; ctx.lineWidth=3.5; ctx.lineCap='round';
+  for(let side=-1; side<=1; side+=2){
+    for(let l=0;l<3;l++){
+      const phase = (s==='walk') ? Math.sin(t*0.04+l*2+side) * 5 : Math.sin(t*0.004+l)*1;
+      const bx = side*14, by=-2+l*5;
+      ctx.beginPath();
+      ctx.moveTo(bx*0.6,by);
+      ctx.quadraticCurveTo(bx+side*6, by+4+phase*0.4, bx+side*11, by+10+phase);
+      ctx.stroke();
+    }
+  }
+  // claws — raised in celebration, heaving on the stone, drooping when sad
+  const clawUp = s==='happy' ? -14 : s==='heave' ? -8-heaveLean*8 : droop;
+  for(let side=-1; side<=1; side+=2){
+    const cx = side*20, cy = -6+clawUp + (s==='happy'?Math.sin(t*0.03+side)*4:0);
+    ctx.strokeStyle='#b8482f'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(side*10,-4); ctx.quadraticCurveTo(side*16,-8,cx,cy); ctx.stroke();
+    ctx.fillStyle='#c9553a';
+    ctx.beginPath(); ctx.arc(cx,cy,6.5,0,7); ctx.fill();
+    // pincer notch
+    ctx.fillStyle='#8a3322';
+    ctx.beginPath(); ctx.arc(cx+side*3.5,cy-3,2.2,0,7); ctx.fill();
+  }
+  // body
+  const grad = ctx.createRadialGradient(-3,-6,3,0,0,18);
+  grad.addColorStop(0,'#e0704f'); grad.addColorStop(1,'#b8482f');
+  ctx.fillStyle=grad;
+  ctx.beginPath(); ctx.ellipse(0,wob*0.3,17,12,0,0,7); ctx.fill();
+  ctx.strokeStyle='rgba(90,25,15,.5)'; ctx.lineWidth=1.5; ctx.stroke();
+  // shell dimples
+  ctx.fillStyle='rgba(255,255,255,.18)';
+  ctx.beginPath(); ctx.ellipse(-4,-4,6,3.5,-0.4,0,7); ctx.fill();
+  // eye stalks + eyes (blink)
+  crab.blink = (Math.floor(t/2600))%2===0 && (t%2600)<120 ? 1 : 0;
+  for(let side=-1; side<=1; side+=2){
+    ctx.strokeStyle='#8a3322'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(side*5,-9); ctx.lineTo(side*7,-16+droop); ctx.stroke();
+    ctx.fillStyle='#fff';
+    ctx.beginPath(); ctx.arc(side*7,-18+droop,3.6,0,7); ctx.fill();
+    if(!crab.blink){
+      ctx.fillStyle='#232e38';
+      ctx.beginPath(); ctx.arc(side*7 + (s==='walk'?Math.sign(crab.tx-crab.x):0),-18+droop,1.8,0,7); ctx.fill();
+    } else {
+      ctx.strokeStyle='#232e38'; ctx.lineWidth=1.4;
+      ctx.beginPath(); ctx.moveTo(side*7-3,-18+droop); ctx.lineTo(side*7+3,-18+droop); ctx.stroke();
+    }
+  }
+  // happy mouth / sad mouth
+  ctx.strokeStyle='#5c1f12'; ctx.lineWidth=1.6;
+  ctx.beginPath();
+  if(s==='happy') ctx.arc(0,-2,4,0.2,Math.PI-0.2);
+  else if(s==='sad') ctx.arc(0,4,4,Math.PI+0.3,-0.3);
+  else ctx.moveTo(-2.5,0), ctx.lineTo(2.5,0);
+  ctx.stroke();
+  ctx.restore();
+}
+function setCrabState(st){ crab.state=st; crab._t0=performance.now(); }
+requestAnimationFrame(drawScene);
+
+/* ================================================================ overlay */
+const grid = $('stone-grid');
+const stoneBtns = [];
+for(let i=0;i<STONES;i++){
+  const b=document.createElement('button');
+  b.type='button';
+  const p=STONE_POS[i];
+  b.style.left=(p.x/W*100)+'%';
+  b.style.top=(p.y/H*100)+'%';
+  b.style.width=(p.r*2.4/W*100)+'%';
+  b.style.aspectRatio='1';
+  b.setAttribute('aria-label','stone '+(i+1));
+  b.disabled = true;
+  b.addEventListener('click', ()=>digStone(i));
+  grid.appendChild(b); stoneBtns.push(b);
+}
+function syncOverlay(){
+  const canDig = exp && !busy && pool && pool.stonesLeft>0 && purse>=DIG_COST && fragmentsLeft(pool)>0;
+  stoneBtns.forEach((b,i)=>{
+    const dug = !!uncovered[i];
+    b.disabled = dug || !canDig;
+    b.setAttribute('aria-disabled', String(b.disabled));
+    if(dug) b.setAttribute('aria-label', 'stone '+(i+1)+' — turned, '+(uncovered[i].hit?'found a fragment':'empty'));
+  });
+}
+
+/* ================================================================ game flow */
+function rebuildFromExp(){
+  pool = newPool(); stoneMap=[]; uncovered={};
+  if(!exp) return;
+  for(let i=0;i<exp.outcomes.length;i++){
+    const o = exp.outcomes[i];
+    uncovered[o.stone] = { hit:o.hit, relic:o.relic, at: 0 };
+    // rebuild pool state
+    pool = { ...pool }; // dig() replays below for correctness
+  }
+  // replay through dig() for exact state
+  pool = newPool();
+  for(let i=0;i<exp.digSeeds.length;i++){
+    pool = digReplay(pool, exp.digSeeds[i]);
+  }
+}
+function digReplay(p, seed){ return dig(p, seed).pool; }
+
+async function startExpedition(){
+  purse -= PERMIT; save(LS.purse, purse);
+  expNo++; save(LS.n, expNo);
+  exp = { n: expNo, seed: randHex(16), digSeeds: [], outcomes: [], at: Date.now() };
+  save(LS.exp, exp);
+  pool = newPool(); uncovered = {}; stoneMap=[];
+  hideBanner();
+  setCrabState('happy'); crabGoto(120, 480);
+  setTimeout(()=>setCrabState('idle'), 900);
+  renderAll();
+}
+
+async function digStone(i){
+  if(busy || !exp || uncovered[i] || purse<DIG_COST) return;
+  busy = true; renderAll();
+  purse -= DIG_COST; save(LS.purse, purse);
+  const seed = await sha256hex(exp.seed + '|' + exp.digSeeds.length);
+  const p = STONE_POS[i];
+  // Brine scuttles over
+  crabGoto(p.x, p.y + p.r + 16);
+  clack();
+  while(Math.hypot(crab.tx-crab.x, crab.ty-crab.y) > 3 && watched()) await sleep(40);
+  // the heave
+  setCrabState('heave'); crab.target = i;
+  scrape();
+  await sleep(watched()?700:0);
+  const out = dig(pool, seed);
+  pool = out.pool;
+  exp.digSeeds.push(seed);
+  exp.outcomes.push({ stone: i, hit: out.hit, relic: out.relic, completed: out.completed });
+  save(LS.exp, exp);
+  uncovered[i] = { hit: out.hit, relic: out.relic, at: performance.now() };
+  crab.target = null;
+  ripples.push({x:p.x, y:p.y, r:p.r*0.6, life:1});
+  splash();
+  if(out.hit){
+    setCrabState('happy'); chime(RELICS.findIndex((r)=>r.key===out.relic));
+    for(let k=0;k<14;k++) sparkles.push({x:p.x,y:p.y,vx:(Math.random()-0.5)*3,vy:-1-Math.random()*2.5,life:1,c:'#ffe9a8'});
+    if(out.completed){
+      const spec = RELICS.find((r)=>r.key===out.completed);
+      purse += spec.pays * DIG_COST; save(LS.purse, purse);
+      fanfare(out.completed==='figure');
+      showBanner(spec.name + ' complete!',
+        `Banked <b class="win">+${fmt(spec.pays*DIG_COST)}</b> doubloons — safe whatever comes`, true);
+    }
+  } else {
+    setCrabState('sad'); bubble();
+  }
+  await sleep(watched()?650:0);
+  setCrabState('idle');
+  busy = false;
+  // pool exhausted or barren → the expedition ends itself
+  if(pool.stonesLeft===0 || fragmentsLeft(pool)===0){
+    endExpedition(fragmentsLeft(pool)===0 ? 'The pool is picked clean.' : 'Every stone is turned.');
+  }
+  renderAll();
+}
+
+function endExpedition(reason){
+  const v = bankValue(pool);
+  log.unshift({
+    n: exp.n, digs: pool.digs, banked: [...pool.banked],
+    spent: v.spent, delta: v.delta, seed: exp.seed, at: Date.now(),
+  });
+  log = log.slice(0,60); save(LS.log, log);
+  const won = v.delta >= 0;
+  showBanner(
+    won ? 'A fine expedition!' : 'The tide keeps its share',
+    `${reason||''} ${pool.banked.length ? pool.banked.length+' relic'+(pool.banked.length>1?'s':'')+' banked —' : 'Nothing banked —'} <b class="${won?'win':'lose'}">${fmtDelta(v.delta)}</b> doubloons overall`,
+    won,
+  );
+  exp = null; save(LS.exp, null);
+  crabGoto(crab.home.x, crab.home.y);
+  renderAll();
+}
+
+/* ================================================================ banner */
+function showBanner(head, subHTML, won){
+  $('banner-head').textContent = head;
+  $('banner-sub').innerHTML = subHTML;
+  $('banner-inner').className = 'inner ' + (won===true?'win':won===false?'lose':'');
+  $('banner').classList.add('show');
+  clearTimeout(showBanner.t);
+  showBanner.t = setTimeout(hideBanner, 5000);
+}
+function hideBanner(){ $('banner').classList.remove('show'); }
+$('banner').setAttribute('role','status');
+
+/* purse rolls */
+let shownPurse = purse;
+setInterval(()=>{
+  if(Math.abs(shownPurse-purse)>0.5){
+    shownPurse += (purse-shownPurse)*0.25;
+    $('purse').textContent = fmt(Math.round(shownPurse));
+  }
+}, 40);
+
+/* ================================================================ UI */
+const RELIC_ART = {
+  coin: '<svg viewBox="0 0 54 54"><circle cx="27" cy="27" r="20" fill="#d4af37" stroke="#8a6508" stroke-width="2"/><circle cx="27" cy="27" r="12" fill="none" stroke="#8a6508" stroke-width="1.5" opacity=".6"/><path d="M27 15v24M20 20h14" stroke="#8a6508" stroke-width="2" opacity=".5"/></svg>',
+  sextant: '<svg viewBox="0 0 54 54"><path d="M27 12 14 40h26z" fill="none" stroke="#b08d57" stroke-width="3"/><path d="M17 34a14 14 0 0 0 20 0" fill="none" stroke="#b08d57" stroke-width="3"/><circle cx="27" cy="12" r="3" fill="#b08d57"/></svg>',
+  figure: '<svg viewBox="0 0 54 54"><path d="M27 6c8 6 10 14 6 22-3 6-3 12 2 18-8-2-14-7-16-14-2-8 0-19 8-26z" fill="#7a5b3a" stroke="#4a3626" stroke-width="2"/><circle cx="24" cy="18" r="2.5" fill="#f7f1e3"/></svg>',
+};
+function renderTray(){
+  const tray = $('relic-tray'); tray.innerHTML='';
+  for(const r of RELICS){
+    const found = pool ? pool.found[r.key] : 0;
+    const done = pool ? pool.banked.includes(r.key) : false;
+    const div = document.createElement('div');
+    div.className = 'relic' + (done?' done':'');
+    div.innerHTML = `
+      <div class="art" style="${done?'':'opacity:'+(0.25+0.5*(found/r.size))}">${RELIC_ART[r.key]}</div>
+      <div class="meta">
+        <div class="name">${r.name}${done?' ✓':''}</div>
+        <div class="pays">${r.size} fragments · pays ${fmt(r.pays*DIG_COST)}</div>
+        <div class="frag-dots">${Array.from({length:r.size},(_,i)=>`<span class="${i<found?'got':''}"></span>`).join('')}</div>
+      </div>`;
+    tray.appendChild(div);
+  }
+}
+function renderFacts(){
+  if(!exp || !pool){
+    $('f-stones').textContent='—'; $('f-odds').textContent='—';
+    $('f-spent').textContent='—'; $('f-banked').textContent='—';
+    return;
+  }
+  const v = bankValue(pool);
+  $('f-stones').textContent = pool.stonesLeft;
+  $('f-odds').textContent = Math.round(hitChance(pool)*100)+'%';
+  $('f-spent').textContent = fmt(v.spent);
+  $('f-banked').textContent = fmt(v.payout);
+}
+function renderButtons(){
+  const go = $('go-btn'), out = $('out-btn');
+  if(!exp){
+    go.style.display='block'; out.style.display='none';
+    go.disabled = busy || purse < PERMIT;
+    go.textContent = purse < PERMIT ? 'Not enough for a permit' : `Tide permit — ${PERMIT}`;
+    $('dig-note').textContent = 'Buy a tide permit and Brine will start turning stones. Completed relics pay the moment their last fragment surfaces.';
+  } else {
+    go.style.display='none'; out.style.display='block';
+    out.disabled = busy;
+    const v = bankValue(pool);
+    out.textContent = `Wade out (${fmtDelta(v.delta)} overall)`;
+    const oddsTxt = `${fragmentsLeft(pool)} fragments under ${pool.stonesLeft} stones`;
+    $('dig-note').textContent = busy ? 'Brine is at work…'
+      : purse < DIG_COST ? 'The purse is dry — wade out.'
+      : `Tap a stone — each dig costs ${DIG_COST}. ${oddsTxt}. Knowing when to wade out is the whole game.`;
+  }
+  $('exp-no').textContent = exp ? 'expedition '+fmt(exp.n) : (log.length? fmt(expNo)+' sailed' : '');
+}
+function ago(ts){
+  const s=(Date.now()-ts)/1000;
+  if(s<90) return 'just now';
+  if(s<3600) return Math.round(s/60)+' min ago';
+  if(s<86400) return Math.round(s/3600)+' h ago';
+  return Math.round(s/86400)+' d ago';
+}
+function renderLog(){
+  $('log-count').textContent = log.length ? `${log.length} expedition${log.length>1?'s':''}` : '';
+  $('log-empty').style.display = log.length ? 'none':'block';
+  $('log').style.display = log.length ? 'table':'none';
+  const tb = $('log').querySelector('tbody'); tb.innerHTML='';
+  for(const r of log){
+    const tr = document.createElement('tr');
+    const relics = r.banked.length
+      ? r.banked.map((k)=>RELICS.find((x)=>x.key===k).name).join(', ') : '—';
+    tr.innerHTML = `
+      <td>#${r.n}<br><span class="when" title="${new Date(r.at).toLocaleString()}">${ago(r.at)}</span></td>
+      <td class="num" style="text-align:left">${r.digs}</td>
+      <td>${relics}</td>
+      <td class="num">${fmt(r.spent)}</td>
+      <td class="num ${r.delta>=0?'delta-win':'delta-lose'}">${fmtDelta(r.delta)}</td>
+      <td><button type="button" class="tag" data-verify="${r.n}" style="cursor:pointer;border-bottom:1px dashed var(--accent);color:var(--accent)">verify ✓</button></td>`;
+    tb.appendChild(tr);
+  }
+  tb.querySelectorAll('[data-verify]').forEach((a)=>a.addEventListener('click', async ()=>{
+    const r = log.find((x)=>String(x.n)===a.dataset.verify);
+    // replay every dig from the expedition seed chain
+    let p = newPool(); let okV = true;
+    for(let i=0;i<r.digs;i++){
+      const seed = await sha256hex(r.seed + '|' + i);
+      p = dig(p, seed).pool;
+    }
+    const v = bankValue(p);
+    okV = v.spent===r.spent && v.delta===r.delta
+      && JSON.stringify(p.banked)===JSON.stringify(r.banked);
+    a.textContent = okV ? 'verified ✓' : 'MISMATCH ✗';
+    a.style.color = okV ? 'var(--win)' : 'var(--lose)';
+    a.title = `replayed ${r.digs} digs from seed ${r.seed.slice(0,8)}…`;
+  }));
+}
+function renderHeader(){ $('sound-ic').innerHTML = `<use href="#i-${soundOn?'sound':'mute'}"/>`; }
+function renderAll(){ renderHeader(); renderTray(); renderFacts(); renderButtons(); renderLog(); syncOverlay(); }
+
+/* ---------------- events ---------------- */
+$('go-btn').addEventListener('click', ()=>{ if(!exp && purse>=PERMIT && !busy){ ac().resume?.(); clack(); startExpedition(); } });
+$('out-btn').addEventListener('click', ()=>{ if(exp && !busy){ clack(); endExpedition('Waded out with dry feet.'); } });
+$('sound-btn').addEventListener('click',()=>{ soundOn=!soundOn; save(LS.sound,soundOn); renderHeader(); if(soundOn) clack(); });
+
+/* ---------------- boot ---------------- */
+if(purse<=0 && !exp){ purse = 1000; save(LS.purse, purse); }
+shownPurse = purse; $('purse').textContent = fmt(purse);
+if(exp){
+  // an expedition survives a reload: replay it silently to the exact state
+  pool = newPool(); uncovered = {};
+  (async ()=>{
+    for(let i=0;i<exp.digSeeds.length;i++){
+      const out = dig(pool, exp.digSeeds[i]);
+      pool = out.pool;
+      uncovered[exp.outcomes[i].stone] = { hit: out.hit, relic: out.relic, at: 0 };
+    }
+    renderAll();
+  })();
+}
+renderAll();
+</script>
+</body>
+</html>
