@@ -72,6 +72,7 @@
     cursor:pointer;pointer-events:auto;
   }
   #stone-grid button:disabled{cursor:default;pointer-events:none}
+  #stone-grid button[aria-disabled="true"]{cursor:default}
   #stone-grid button:focus-visible{
     outline:0;border-radius:50%;
     box-shadow:0 0 0 2.5px #fff, 0 0 0 5px var(--ink);
@@ -204,7 +205,7 @@
           <div class="facts">
             <div><div class="k">Stones left</div><div class="v" id="f-stones">—</div></div>
             <div><div class="k">Next stone hides</div><div class="v" id="f-odds">—</div></div>
-            <div><div class="k">Spent</div><div class="v" id="f-spent">—</div></div>
+            <div><div class="k">Net</div><div class="v" id="f-spent">—</div></div>
             <div><div class="k">Banked</div><div class="v" id="f-banked">—</div></div>
           </div>
           <div id="dig-note">Buy a tide permit and Brine will start turning stones.</div>
@@ -460,15 +461,20 @@ function drawScene(now){
     ctx.beginPath(); ctx.arc(0,0,r.r,0,7); ctx.stroke();
     ctx.restore();
   }
-  // broken water lines that skip the stones
+  // broken water lines that skip the (unturned) stones
   ctx.strokeStyle='rgba(255,255,255,.16)'; ctx.lineWidth=1.4;
   for(let row=0;row<6;row++){
     const y=95+row*76;
     for(let x=30;x<W-30;x+=14){
-      const near = STONE_POS.some((p)=>!uncovered[STONE_POS.indexOf(p)] && Math.abs(p.y-y)<p.r*0.8 && Math.abs(p.x-x)<p.r*0.95);
+      let near=false;
+      for(let si=0;si<STONES;si++){
+        const p=STONE_POS[si];
+        if(!uncovered[si] && Math.abs(p.y-y)<p.r*0.8 && Math.abs(p.x-x)<p.r*0.95){ near=true; break; }
+      }
       if(near) continue;
-      const yy=y+Math.sin(x*0.03+t*0.0018+row*1.6)*3;
-      ctx.beginPath(); ctx.moveTo(x,yy); ctx.lineTo(x+9,yy+Math.sin((x+9)*0.03+t*0.0018+row*1.6)*3-yy+yy); ctx.stroke();
+      const y1=y+Math.sin(x*0.03+t*0.0018+row*1.6)*3;
+      const y2=y+Math.sin((x+9)*0.03+t*0.0018+row*1.6)*3;
+      ctx.beginPath(); ctx.moveTo(x,y1); ctx.lineTo(x+9,y2); ctx.stroke();
     }
   }
   // stones & hollows
@@ -630,8 +636,17 @@ function drawCrab(t, now){
   // the carried fragment rides between the claws
   if(crab.carry){
     ctx.save(); ctx.translate(0,-16+clawUp*0.5); ctx.scale(0.55,0.55);
-    ctx.fillStyle='#d4af37'; ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fill();
-    ctx.strokeStyle='#8a6508'; ctx.lineWidth=2; ctx.stroke();
+    if(crab.carry==='coin'){
+      ctx.fillStyle='#d4af37'; ctx.beginPath(); ctx.arc(0,0,11,0,7); ctx.fill();
+      ctx.strokeStyle='#8a6508'; ctx.lineWidth=2; ctx.stroke();
+    } else if(crab.carry==='sextant'){
+      ctx.strokeStyle='#e8c987'; ctx.lineWidth=3.5; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(0,3,10,Math.PI*1.1,Math.PI*1.9); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(0,3); ctx.lineTo(-7,-7); ctx.moveTo(0,3); ctx.lineTo(7,-7); ctx.stroke();
+    } else {
+      ctx.strokeStyle='#f0e2c8'; ctx.lineWidth=4; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-6,8); ctx.quadraticCurveTo(2,-2,-2,-8); ctx.stroke();
+    }
     ctx.restore();
   }
   // body
@@ -671,7 +686,7 @@ function drawCrab(t, now){
     crab.idleNext = now + 3000 + Math.random()*4000;
     const act = Math.floor(Math.random()*3);
     if(act===0){ crabGoto(crab.home.x + (Math.random()-0.5)*120, crab.home.y + (Math.random()-0.5)*20); }
-    else if(act===1){ setMood('happy', 900); clack(0.02); }
+    else if(act===1){ setMood('happy', 900); }
     else { for(let k=0;k<3;k++) sparkles.push({x:crab.x+8,y:crab.y-40-k*8,vx:0,vy:-0.8,life:0.9,c:'rgba(255,255,255,.5)',grav:false}); }
   }
 }
@@ -736,16 +751,18 @@ $('banner').setAttribute('role','status');
 
 /* purse rolls */
 let shownPurse = purse;
+let displayTarget = purse; // the ledger settles at click; the DISPLAY waits
+                           // for the reveal so the purse never spoils the dig
 setInterval(()=>{
-  if(Math.abs(shownPurse-purse)>0.5){
-    shownPurse += (purse-shownPurse)*0.25;
+  if(Math.abs(shownPurse-displayTarget)>0.5){
+    shownPurse += (displayTarget-shownPurse)*0.25;
     $('purse').textContent = fmt(Math.round(shownPurse));
   }
 }, 40);
 
 /* ================================================================ game flow */
 function startExpedition(){
-  purse -= PERMIT; save(LS.purse, purse);
+  purse -= PERMIT; save(LS.purse, purse); displayTarget = purse;
   expNo++; save(LS.n, expNo);
   exp = { n: expNo, seed: randHex(16), digSeeds: [], outcomes: [], at: Date.now() };
   save(LS.exp, exp);
@@ -772,6 +789,7 @@ async function digStone(i){
   if(out.completed) payoutNow = RELICS.find((r)=>r.key===out.completed).pays * DIG_COST;
   purse += payoutNow;
   save(LS.purse, purse); save(LS.exp, exp);   // ← the ledger is settled HERE
+  displayTarget = purse - payoutNow;          // the dig cost shows; the win waits
 
   /* ---- everything below is theatre over a committed result ---- */
   const p = STONE_POS[i];
@@ -787,6 +805,7 @@ async function digStone(i){
   crab.target=null; crab.loco='idle';
   ripples.push({x:p.x, y:p.y, r:p.r*0.6, life:1});
   splash();
+  displayTarget = purse;                        // now the purse may celebrate
   renderTray(); renderFacts(); syncOverlay();   // HUD speaks at the reveal beat
   if(out.hit){
     setMood('happy', 1400); chime(RELICS.findIndex((r)=>r.key===out.relic));
@@ -889,7 +908,7 @@ function renderButtons(){
     go.disabled = busy || booting || purse < PERMIT;
     go.textContent = purse < PERMIT ? 'Not enough for a permit' : `Tide permit — ${PERMIT}`;
     $('dig-note').textContent = purse < PERMIT
-      ? 'The purse is dry. The tide lends every broke beachcomber 1,000 at dawn — reload tomorrow.'
+      ? 'The purse is dry. The tide lends every broke beachcomber a fresh 1,000 — come back with the next tide (reload).'
       : `${PERMIT} buys the tide: ${FRAGMENTS} fragments worth up to ${fmt(RELICS.reduce((s,r)=>s+r.pays*DIG_COST,0))} wait under ${STONES} stones. Digs cost ${DIG_COST} each.`;
   } else {
     go.style.display='none'; out.style.display='block';
@@ -957,7 +976,7 @@ $('sound-btn').addEventListener('click',()=>{ soundOn=!soundOn; save(LS.sound,so
 
 /* ---------------- boot ---------------- */
 if(purse<=0 && !exp){ purse = 1000; save(LS.purse, purse); } // the dawn loan, as promised in the note
-shownPurse = purse; $('purse').textContent = fmt(purse);
+shownPurse = purse; displayTarget = purse; $('purse').textContent = fmt(purse);
 renderAll();
 if(exp){
   (async ()=>{
