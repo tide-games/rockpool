@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head><meta charset="utf-8"><title>og poster renderer</title>
+<style>body{margin:0;background:#333}canvas{display:block}</style></head>
+<body>
+<canvas id="og" width="1200" height="630"></canvas>
+<script>
+// 1200×630 OG poster for Rockpool — Brine the crab, star of the show,
+// beside the pool with a glowing find. All from code.
+const cv = document.getElementById('og'), ctx = cv.getContext('2d');
+const W = 1200, H = 630;
+// sand
+let g = ctx.createLinearGradient(0,0,0,H);
+g.addColorStop(0,'#eee3c7'); g.addColorStop(1,'#dfd2b0');
+ctx.fillStyle=g; ctx.fillRect(0,0,W,H);
+ctx.fillStyle='rgba(120,100,60,.13)';
+let a=13579; const jr=()=>{a^=a<<13;a^=a>>>17;a^=a<<5;return((a>>>0)/4294967296)};
+for(let i=0;i<200;i++) ctx.fillRect(jr()*W, jr()*H, 1+jr()*2, 1+jr()*2);
+// the pool, right of center
+const PP = new Path2D();
+PP.moveTo(430,150);
+PP.bezierCurveTo(430,60, 640,30, 800,52);
+PP.bezierCurveTo(1020,30, 1150,110, 1140,250);
+PP.bezierCurveTo(1160,400, 1080,540, 900,570);
+PP.bezierCurveTo(720,600, 500,560, 450,440);
+PP.bezierCurveTo(408,330, 415,230, 430,150);
+PP.closePath();
+ctx.save(); ctx.strokeStyle='rgba(96,76,44,.22)'; ctx.lineWidth=26; ctx.stroke(PP); ctx.restore();
+ctx.save(); ctx.clip(PP);
+const wg = ctx.createRadialGradient(790,310,420,790,310,90);
+wg.addColorStop(0,'#a8cfc9'); wg.addColorStop(1,'#3f7288');
+ctx.fillStyle=wg; ctx.fillRect(0,0,W,H);
+ctx.strokeStyle='rgba(190,216,206,.5)'; ctx.lineWidth=16; ctx.stroke(PP);
+// water lines
+ctx.strokeStyle='rgba(255,255,255,.18)'; ctx.lineWidth=2;
+for(let row=0;row<6;row++){
+  const y=120+row*80;
+  ctx.beginPath();
+  for(let x=430;x<=1150;x+=16){ const yy=y+Math.sin(x*0.02+row)*4; x===430?ctx.moveTo(x,yy):ctx.lineTo(x,yy); }
+  ctx.stroke();
+}
+// stones — seeded blobs, three hues
+const HUES=[[128,136,142],[128,134,118],[146,128,114]];
+for(let i=0;i<11;i++){
+  const x=520+ (i%4)*170 + (jr()-0.5)*50, y=140+Math.floor(i/4)*150+(jr()-0.5)*40;
+  const r=38+jr()*14, hue=HUES[Math.floor(jr()*3)], t=0.85+jr()*0.3;
+  ctx.fillStyle='rgba(25,45,50,.28)';
+  ctx.beginPath(); ctx.ellipse(x+3,y+8,r*0.95,r*0.55,0,0,7); ctx.fill();
+  ctx.fillStyle=`rgb(${hue[0]*t|0},${hue[1]*t|0},${hue[2]*t|0})`;
+  ctx.beginPath();
+  for(let k=0;k<=6;k++){ const an=k/6*Math.PI*2, rr=r*(0.85+jr()*0.3);
+    k===0?ctx.moveTo(x+Math.cos(an)*rr,y+Math.sin(an)*rr*0.8):ctx.quadraticCurveTo(x+Math.cos(an-0.5)*rr*1.1,y+Math.sin(an-0.5)*rr*0.9,x+Math.cos(an)*rr,y+Math.sin(an)*rr*0.8); }
+  ctx.closePath(); ctx.fill();
+  ctx.strokeStyle='rgba(40,50,55,.35)'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.2)';
+  ctx.beginPath(); ctx.ellipse(x-r*0.25,y-r*0.3,r*0.4,r*0.22,-0.5,0,7); ctx.fill();
+}
+// one dark hollow with a GLOWING coin
+(function(){
+  const x=700,y=430;
+  const hg=ctx.createRadialGradient(x,y,6,x,y,60);
+  hg.addColorStop(0,'#46524a'); hg.addColorStop(1,'#5c6b5e');
+  ctx.fillStyle=hg; ctx.beginPath(); ctx.ellipse(x,y,62,44,0,0,7); ctx.fill();
+  const gg=ctx.createRadialGradient(x,y,6,x,y,80);
+  gg.addColorStop(0,'rgba(255,220,120,.55)'); gg.addColorStop(1,'rgba(255,220,120,0)');
+  ctx.fillStyle=gg; ctx.beginPath(); ctx.arc(x,y,80,0,7); ctx.fill();
+  ctx.fillStyle='#d4af37'; ctx.beginPath(); ctx.arc(x,y,26,0,7); ctx.fill();
+  ctx.strokeStyle='#8a6508'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.45)'; ctx.beginPath(); ctx.arc(x-8,y-8,10,0,7); ctx.fill();
+})();
+ctx.restore();
+ctx.strokeStyle='rgba(120,100,60,.5)'; ctx.lineWidth=6; ctx.stroke(PP);
+
+// BRINE — enormous, left foreground
+(function(){
+  ctx.save(); ctx.translate(240,430); ctx.scale(7,7);
+  ctx.strokeStyle='#a63d2e'; ctx.lineWidth=3.5; ctx.lineCap='round';
+  for(let side=-1;side<=1;side+=2) for(let l=0;l<3;l++){
+    const bx=side*14, by=-2+l*5;
+    ctx.beginPath(); ctx.moveTo(bx*0.6,by);
+    ctx.quadraticCurveTo(bx+side*6,by+4,bx+side*11,by+10+(l%2?2:-1)); ctx.stroke();
+  }
+  for(let side=-1;side<=1;side+=2){
+    const cx=side*21, cy=-14;
+    ctx.strokeStyle='#b8482f'; ctx.lineWidth=4;
+    ctx.beginPath(); ctx.moveTo(side*10,-4); ctx.quadraticCurveTo(side*16,-9,cx,cy); ctx.stroke();
+    ctx.fillStyle='#c9553a'; ctx.beginPath(); ctx.arc(cx,cy,6.5,0,7); ctx.fill();
+    ctx.fillStyle='#8a3322'; ctx.beginPath(); ctx.arc(cx+side*3.5,cy-3,2.2,0,7); ctx.fill();
+  }
+  const grad=ctx.createRadialGradient(-3,-6,3,0,0,18);
+  grad.addColorStop(0,'#e0704f'); grad.addColorStop(1,'#b8482f');
+  ctx.fillStyle=grad; ctx.beginPath(); ctx.ellipse(0,0,17,12,0,0,7); ctx.fill();
+  ctx.strokeStyle='rgba(90,25,15,.5)'; ctx.lineWidth=1.5; ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,.18)';
+  ctx.beginPath(); ctx.ellipse(-4,-4,6,3.5,-0.4,0,7); ctx.fill();
+  for(let side=-1;side<=1;side+=2){
+    ctx.strokeStyle='#8a3322'; ctx.lineWidth=2.5;
+    ctx.beginPath(); ctx.moveTo(side*5,-9); ctx.lineTo(side*7,-16); ctx.stroke();
+    ctx.fillStyle='#fff'; ctx.beginPath(); ctx.arc(side*7,-18,3.6,0,7); ctx.fill();
+    ctx.fillStyle='#232e38'; ctx.beginPath(); ctx.arc(side*7+1,-18,1.8,0,7); ctx.fill();
+  }
+  ctx.strokeStyle='#5c1f12'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.arc(0,-2,4,0.2,Math.PI-0.2); ctx.stroke();
+  ctx.restore();
+})();
+// wrack + shells by his feet
+ctx.strokeStyle='rgba(90,110,70,.45)'; ctx.lineWidth=5; ctx.lineCap='round';
+ctx.beginPath(); ctx.moveTo(60,560); ctx.quadraticCurveTo(140,545,230,558); ctx.quadraticCurveTo(300,568,360,556); ctx.stroke();
+
+// title panel
+const px=56, py=64, pw=520, ph=150;
+ctx.fillStyle='rgba(247,241,227,.96)';
+ctx.strokeStyle='#d9cdb4'; ctx.lineWidth=2;
+ctx.beginPath(); ctx.roundRect(px,py,pw,ph,18); ctx.fill(); ctx.stroke();
+ctx.fillStyle='#1e6f8e'; ctx.fillRect(px,py,pw,6);
+ctx.fillStyle='#232e38';
+ctx.font='700 56px "Iowan Old Style",Palatino,Georgia,serif';
+ctx.fillText('ROCKPOOL', px+28, py+66);
+ctx.fillStyle='#5c6a76';
+ctx.font='italic 25px Georgia,serif';
+ctx.fillText('every low tide turns one stone', px+28, py+104);
+ctx.fillStyle='#1e6f8e';
+ctx.font='600 17px system-ui,sans-serif';
+ctx.fillText('dig with Brine · the odds shift with every stone · honest maths', px+28, py+134);
+</script>
+</body>
+</html>
